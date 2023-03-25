@@ -4,7 +4,8 @@
   "description": "MalinaJS Development Server",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node node_modules/malinajs-devserver -w",
+    "build": "node node_modules/malinajs-devserver"
   },
   "repository": {
     "type": "git",
@@ -21,5 +22,14 @@
   "bugs": {
     "url": "https://github.com/ulmzr/malinajs-devserver/issues"
   },
-  "homepage": "https://github.com/ulmzr/malinajs-devserver#readme"
+  "homepage": "https://github.com/ulmzr/malinajs-devserver#readme",
+  "dependencies": {
+    "chokidar": "^3.5.3",
+    "esbuild": "^0.17.13",
+    "malinajs": "^0.6.64",
+    "ws": "^8.13.0"
+  },
+  "devDependencies": {
+    "malinajs-trouter": "^1.0.3"
+  }
 }

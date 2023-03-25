@@ -8,26 +8,37 @@ const fsp = require("fs/promises");
 const fs = require("fs");
 const path = require("path");
 
+const cwd = process.cwd();
+
 const watch = process.argv.includes("-w");
 
-const cwd = process.cwd();
-const port = 3000;
-const outdir = "public";
+const optsPath = path.join(cwd, "options.js");
+const esBuildConfigPath = path.join(cwd, "esbuild.config.js");
+const opts = fs.existsSync(optsPath) ? require(optsPath) : {};
+const options = fs.existsSync(esBuildConfigPath)
+   ? require(esBuildConfigPath)
+   : {};
 
-buildCode();
+const port = opts.port || 3000;
+const outdir = opts.outdir || "public";
+
+let ready;
+
+build();
 
 if (watch) {
    startServer();
    watchChanges();
 }
 
-async function buildCode() {
+async function build() {
    let ctx = await esbuild.context({
       entryPoints: [path.join(cwd, "src", "main.js")],
       outdir: path.join(cwd, outdir),
       minify: true,
       bundle: true,
       plugins: [malinaPlugin()],
+      ...options,
    });
 
    await ctx.watch();
@@ -41,6 +52,7 @@ function startServer() {
    const index = () =>
       fs.readFileSync(path.join(cwd, outdir, "index.html"), "utf8") +
       injectedScript;
+
    const mime = (ext) => {
       let map = {
          bin: "application/octet-stream",
@@ -62,6 +74,7 @@ function startServer() {
       };
       return map[ext] || map.bin;
    };
+
    const handler = (request, response) => {
       let url = request.url.replace(/(.*\/|\?.*)$/g, "") || "/";
       let arr = url.split(".");
@@ -162,31 +175,35 @@ function watchChanges() {
          await ctx.rebuild();
       });
 
-   let ready;
    chokidar
       .watch(["src/pages/**/*"], {
          ignored: /(^|[\/\\])\../,
          persistent: true,
          cwd,
       })
-      .on("ready", () => {
-         ready = true;
-      })
       .on("add", reIndex)
       .on("unlink", reIndex)
       .on("addDir", (ev) => {
-         // if (!ready) return;
+         if (!ready) return;
          let dirName = ev.replace(/.*\\/g, "");
-         let content = `
-<script>
+         let dirPath = path.join(cwd, "src", "pages", dirName);
+         let isCmp = /[A-Z]/.test(dirName.charAt(0));
+         let content = "";
+         if (isCmp)
+            content += `<script>
    export let params;
-   import E404 from '../E404.xht';
-   import load from './index';
-   
+   let page;
+   $:params, page = params.page;
+</script>
+
+<h3>{page}</h3>
+`;
+         else
+            content += `<script>
+   export let params;
+   import load from './pages';
    let cmp = '';
-   
    const dynImport = dyn => dyn.then(m=>cmp=m.default);
-   
    $:params, load(params.page, dynImport);
 </script>
 
@@ -198,27 +215,25 @@ function watchChanges() {
    <E404/>
 {/if}
 `;
-         fs.writeFileSync(
-            path.join(cwd, "src", "pages", dirName, "pageIndex.xht"),
-            content
-         );
-         fs.writeFileSync(
-            path.join(cwd, "src", "pages", dirName, "index.js"),
-            ""
-         );
+         if (isCmp) fs.writeFileSync(path.join(dirPath, "index.xht"), content);
+         else {
+            fs.writeFileSync(path.join(dirPath, "pageIndex.xht"), content);
+            fs.writeFileSync(path.join(dirPath, "pages.js"), "");
+         }
       })
-      .on("unlinkDir", (ev) => {
-         if (!ready) return;
+      .on("unlinkDir", makeRoutes)
+      .on("ready", () => {
+         ready = true;
          makeRoutes();
       });
 }
 
 function reIndex(ev) {
+   if (!ready) return;
    if (!fs.existsSync("./src/pages/E404.xht")) {
       fs.writeFileSync(
          "./src/pages/E404.xht",
-         `
-<div>
+         `<div>
    <h1>404</h1>
    <h6>PAGE NOT FOUND</h6>
 </div>
@@ -236,6 +251,7 @@ function reIndex(ev) {
 
    let fileName = ev.replace(/.*\\/g, "");
    let dirName = ev.replace(fileName, "");
+
    if (!fs.existsSync(dirName)) return;
 
    let files = fs.readdirSync(dirName);
@@ -275,13 +291,13 @@ function makeRoutes() {
    let dirPath = path.join(cwd, "src", "pages");
    let files = getAllFiles(dirPath);
    files = files.filter((f) => {
+      let cmpIdx = f.includes("index.xht");
       f = f.replace(/.*\\/, "");
       let match =
          (/[A-Z]/.test(f.charAt(0)) && f.endsWith(".xht")) ||
          f.startsWith("pageIndex.xht");
-      return match;
+      return match || cmpIdx;
    });
-
    let content = `export default run => [\n`;
    files.forEach((file) => {
       let filePath = file.split("src")[1];
@@ -293,6 +309,10 @@ function makeRoutes() {
             .replace(/.*\//g, "/");
          content += `\t\tpath: "${filePath}/:page",\n`;
          content += `\t\tpage: obj => run(import("./pages${filePath}/pageIndex.xht"), obj),\n`;
+      } else if (filePath.endsWith("index.xht")) {
+         filePath = filePath.replace("/index.xht", "").replace(/.*\//g, "/");
+         content += `\t\tpath: "${filePath.toLowerCase()}/:page",\n`;
+         content += `\t\tpage: obj => run(import("./pages${filePath}/index.xht"), obj),\n`;
       } else {
          filePath = filePath.replace(".xht", "").replace(/.*\//g, "/");
          let pathName = filePath === "/Home" ? "/" : filePath;
@@ -303,5 +323,5 @@ function makeRoutes() {
    });
    content += `];`;
 
-   fs.writeFileSync(path.join(__dirname, "routes.js"), content);
+   fs.writeFileSync(path.join(__dirname, "src", "routes.js"), content);
 }

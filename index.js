@@ -154,32 +154,26 @@ function watchChanges() {
          persistent: true,
          cwd,
       })
-      .on("change", (path) => {
-         path = path.replace(/\\/g, "/").replace(outdir, "");
+      .on("change", (filePath) => {
+         filePath = filePath.replace(/\\/g, "/").replace(outdir, "");
          socket.clients.forEach((client) => {
             client.send(
                JSON.stringify({
-                  updated: path,
+                  updated: filePath,
                })
             );
          });
       });
 
    chokidar
-      .watch(["src/**/*.scss", "src/**/*.css"], {
+      .watch(["src/**/*"], {
          ignored: /(^|[\/\\])\../,
          persistent: true,
          cwd,
       })
-      .on("change", async () => {
+      .on("change", async (filePath) => {
+         if (!filePath.endsWith("css")) return;
          await ctx.rebuild();
-      });
-
-   chokidar
-      .watch(["src/pages/**/*"], {
-         ignored: /(^|[\/\\])\../,
-         persistent: true,
-         cwd,
       })
       .on("add", reIndex)
       .on("unlink", reIndex)
@@ -228,7 +222,8 @@ function watchChanges() {
       });
 }
 
-function reIndex(ev) {
+function reIndex(filePath) {
+   if (!filePath.endsWith("xht")) return;
    if (!ready) return;
    if (!fs.existsSync("./src/pages/E404.xht")) {
       fs.writeFileSync(

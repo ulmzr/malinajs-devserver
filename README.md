@@ -10,7 +10,7 @@ malina-project/
 │ ├ modules/
 │ │ └ [your module files]
 │ ├ stores/
-│ │ └ [your store + params files]
+│ │ └ [your store + param files]
 │ ├ libs/
 │ │ └ [your lib files]
 │ ├ pages/

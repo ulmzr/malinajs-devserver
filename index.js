@@ -22,7 +22,7 @@ const options = fs.existsSync(esBuildConfigPath)
 const port = opts.port || 3000;
 const outdir = opts.outdir || "public";
 
-let ready;
+let ready, ctx;
 
 build();
 
@@ -32,7 +32,7 @@ if (watch) {
 }
 
 async function build() {
-   let ctx = await esbuild.context({
+   ctx = await esbuild.context({
       entryPoints: [path.join(cwd, "src", "main.js")],
       outdir: path.join(cwd, outdir),
       minify: true,
@@ -78,7 +78,8 @@ function startServer() {
    const handler = (request, response) => {
       let url = request.url.replace(/(.*\/|\?.*)$/g, "") || "/";
       let arr = url.split(".");
-      let content, code = 200;
+      let content,
+         code = 200;
       if (arr[1]) {
          response.setHeader("Content-Type", mime(arr[1]));
          let filename = path.join(cwd, outdir, url);
@@ -91,7 +92,7 @@ function startServer() {
          response.setHeader("Content-Type", "text/html");
          content = index();
       }
-      console.log(code===200?'200':code, url);
+      console.log(code === 200 ? "200" : code, url);
       response.statusCode = code;
       response.end(content);
    };
@@ -293,11 +294,11 @@ function makeRoutes() {
       let cmpIdx = f.includes("index.xht");
       f = f.replace(/.*(\\|\/)/, "");
       let match =
-         ((/[A-Z]/.test(f.charAt(0)) && f.endsWith(".xht"))) ||
+         (/[A-Z]/.test(f.charAt(0)) && f.endsWith(".xht")) ||
          f.startsWith("pageIndex.xht");
       return match || cmpIdx;
    });
-   
+
    let content = `export default run => [\n`;
    files.forEach((file) => {
       let filePath = file.split("src")[1];
@@ -318,12 +319,10 @@ function makeRoutes() {
          let pathName = filePath === "/Home" ? "/" : filePath;
          content += `\t\tpath: "${pathName.toLowerCase()}",\n`;
          content += `\t\tpage: () => run(import("./pages${filePath}.xht")),\n`;
-         
       }
       content += `\t},\n`;
    });
    content += `];`;
-   
 
    fs.writeFileSync(path.join(cwd, "src", "routes.js"), content);
 }

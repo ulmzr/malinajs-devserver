@@ -78,18 +78,21 @@ function startServer() {
    const handler = (request, response) => {
       let url = request.url.replace(/(.*\/|\?.*)$/g, "") || "/";
       let arr = url.split(".");
-      let content;
+      let content, code = 200;
       if (arr[1]) {
          response.setHeader("Content-Type", mime(arr[1]));
          let filename = path.join(cwd, outdir, url);
          if (fs.existsSync(filename)) {
             content = fs.readFileSync(filename);
+         } else {
+            code = 404;
          }
       } else {
          response.setHeader("Content-Type", "text/html");
          content = index();
       }
-      console.log(url);
+      console.log(code===200?'200':code, url);
+      response.statusCode = code;
       response.end(content);
    };
 

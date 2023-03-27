@@ -1,12 +1,8 @@
 {
   "name": "malinajs-devserver",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "MalinaJS Development Server",
   "main": "index.js",
-  "scripts": {
-    "dev": "node node_modules/malinajs-devserver -w",
-    "build": "node node_modules/malinajs-devserver"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ulmzr/malinajs-devserver.git"
@@ -28,8 +24,5 @@
     "esbuild": "^0.17.13",
     "malinajs": "^0.6.64",
     "ws": "^8.13.0"
-  },
-  "devDependencies": {
-    "malinajs-trouter": "^1.0.3"
   }
 }

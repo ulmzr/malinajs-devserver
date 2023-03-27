@@ -31,8 +31,133 @@ const appXHT = `<script>
 </script>
 
 {#if cmp}
-   <component:cmp {params} />
+   <article>
+      <component:cmp {params} />
+   </article>
 {/if}
+
+<style global>
+   *, *::before, *::after {
+      box-sizing: border-box
+   }
+
+   * {
+      margin-top: 0;
+   }
+
+   body {
+      font-family: var(--fonts, system-ui);
+      line-height: 1.5;
+      text-rendering: optimizeSpeed;
+      -webkit-font-smoothing: antialiased;
+   }
+
+   h1, h2, h3, h4, h5, h6 {
+      line-height: 1.125; 
+   }
+
+   h1 {
+      font-size: 2em;
+   }
+
+   img, svg {
+      width: 100%;
+      height: auto;
+   }
+
+   svg {
+      fill: currentColor;
+   }
+
+   input, button, textarea, select {
+      font: inherit;
+   }
+
+   .button {
+      --color: #aab2bd;
+      --colorse: #aab2bdcc;
+      --hover: #96a0ad55;
+      --focus: #aab2bd99;
+      --border: #96a0ad;
+      display: inline-block;
+      vertical-align: middle;
+      white-space: nowrap;
+      padding: 0.3125em 0.875em;
+      border-radius: 0.5em;
+      height: 2.25em;
+      text-align: center;
+      color: #fff;
+      text-shadow: 0 1px 0 #656d78;
+      background: var(--color);
+      border: 1px solid var(--border);
+      text-decoration: none;
+      user-select: none;
+      cursor: pointer;
+   }
+
+   .button:hover {
+      z-index: 3;
+      box-shadow: 0 0 0 3px var(--hover);
+   }
+
+   .button:focus {
+      z-index: 2;
+      box-shadow: 0 0 0 3px var(--focus);
+   }
+
+   .button:active {
+      z-index: 3;
+      box-shadow: inset 0 0 0 1px var(--border);
+   }
+
+   .button[disabled] {
+      box-shadow: none;
+      text-decoration: none;
+      cursor: not-allowed;
+      opacity: 0.3;
+   }
+
+   .button * {
+      pointer-events: none;
+   }
+
+   [type=text], [type=password], [type=email] {
+      display: inline-block;
+      white-space: nowrap;
+      padding: 0.3125em 0.875em;
+      border-radius: 0.5em;
+      background: inherit;
+      height: 2.25em;
+      border: 1px solid #ccd1d9;
+      outline: none;
+   }
+
+   [type=text]:focus, [type=password]:focus, [type=email]:focus {
+      border-color: transparent;
+      box-shadow: 0 0 0 3px #4a89dc55;
+   }
+
+   hr {
+      margin: 1.5em 0;
+      height: 1px;
+      border: none;
+      background: #bbb;
+   }
+
+   hgroup :first-child{
+      margin-bottom: .25em;
+   }
+
+   hgroup :not(:first-child){
+      color: #999;
+   }
+
+   article {
+      padding: 1em;
+      margin: 0 auto;
+      width: 900px;
+   }
+</style>
 `;
 
 const indexHTML = `<!DOCTYPE html>
@@ -55,9 +180,19 @@ const errorXHT = `<script>
 
 <hgroup>
    <h1>{code}</h1>
-   <br>
-   <h4>{msg}</h4>
+   <h6>{msg}</h6>
 </hgroup>
+
+<style>
+   hgroup {
+      text-align: center;
+   }
+
+   hgroup * {
+      text-transform: uppercase;
+      letter-spacing: 2px;
+   }
+</style>
 `;
 
 const homeXHT = `<hgroup>
@@ -66,6 +201,22 @@ const homeXHT = `<hgroup>
 </hgroup>
 <hr>
 <p>Lorem ipsum ....</p>
+<a href="/about/us" class="button">About Us</a>
+`;
+
+const aboutXHT = `<script>
+   export let params;
+   let page;
+   $:params, page = params.page;
+</script>
+
+<hgroup>
+   <h1>About</h1>
+   <h3>Something {page}</h3>
+</hgroup>
+<hr>
+<p>Nothing much here...</p>
+<a href="/" class="button">Home</a>
 `;
 
 const cmpXHT = `<script>
@@ -229,6 +380,7 @@ module.exports = {
    indexHTML,
    errorXHT,
    homeXHT,
+   aboutXHT,
    cmpXHT,
    cmpDirXHT,
    routesJS,

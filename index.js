@@ -12,6 +12,7 @@ const {
    indexHTML,
    errorXHT,
    homeXHT,
+   aboutXHT,
    cmpXHT,
    cmpDirXHT,
    routesJS,
@@ -53,20 +54,22 @@ function init() {
    createDir("src/modules");
    createDir("src/stores");
    createDir("src/pages");
+   createDir("src/pages/About");
    createFile("src/main.js", mainJS);
    createFile("src/App.xht", appXHT);
    createFile("public/index.html", indexHTML);
    createFile("src/modules/Error.xht", errorXHT);
    createFile("src/pages/Home.xht", homeXHT);
+   createFile("src/pages/About/index.xht", aboutXHT);
    createFile("src/routes.js", routesJS);
    createFile("malina.config.js", malinaConfig);
 }
 
 function createFile(fileName, content) {
    let pathName = path.join(cwd, fileName);
-   if (!fs.existsSync(pathName)) {
-      fs.writeFileSync(pathName, content);
-   }
+   // if (!fs.existsSync(pathName)) {
+   fs.writeFileSync(pathName, content);
+   // }
 }
 
 function createDir(dirName) {

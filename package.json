@@ -1,6 +1,6 @@
 {
   "name": "malinajs-devserver",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "MalinaJS Development Server",
   "main": "index.js",
   "repository": {

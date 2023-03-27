@@ -244,8 +244,8 @@ function reIndex(filePath) {
       );
    }
 
-   let fileName = ev.replace(/.*\\/g, "");
-   let dirName = ev.replace(fileName, "");
+   let fileName = filePath.replace(/.*\\/g, "");
+   let dirName = filePath.replace(fileName, "");
 
    if (!fs.existsSync(dirName)) return;
 
@@ -277,7 +277,7 @@ function makeRoutes() {
          if (fs.statSync(dirPath + "/" + file).isDirectory()) {
             arrayOfFiles = getAllFiles(dirPath + "/" + file, arrayOfFiles);
          } else {
-            arrayOfFiles.push(path.join(__dirname, dirPath, "/", file));
+            arrayOfFiles.push(path.join(cwd, dirPath, "/", file));
          }
       });
       return arrayOfFiles;
@@ -285,14 +285,16 @@ function makeRoutes() {
 
    let dirPath = path.join(cwd, "src", "pages");
    let files = getAllFiles(dirPath);
+
    files = files.filter((f) => {
       let cmpIdx = f.includes("index.xht");
-      f = f.replace(/.*\\/, "");
+      f = f.replace(/.*(\\|\/)/, "");
       let match =
-         (/[A-Z]/.test(f.charAt(0)) && f.endsWith(".xht")) ||
+         ((/[A-Z]/.test(f.charAt(0)) && f.endsWith(".xht"))) ||
          f.startsWith("pageIndex.xht");
       return match || cmpIdx;
    });
+   
    let content = `export default run => [\n`;
    files.forEach((file) => {
       let filePath = file.split("src")[1];
@@ -313,10 +315,12 @@ function makeRoutes() {
          let pathName = filePath === "/Home" ? "/" : filePath;
          content += `\t\tpath: "${pathName.toLowerCase()}",\n`;
          content += `\t\tpage: () => run(import("./pages${filePath}.xht")),\n`;
+         
       }
       content += `\t},\n`;
    });
    content += `];`;
+   
 
-   fs.writeFileSync(path.join(__dirname, "src", "routes.js"), content);
+   fs.writeFileSync(path.join(cwd, "src", "routes.js"), content);
 }

@@ -67,9 +67,9 @@ function init() {
 
 function createFile(fileName, content) {
    let pathName = path.join(cwd, fileName);
-   // if (!fs.existsSync(pathName)) {
-   fs.writeFileSync(pathName, content);
-   // }
+   if (!fs.existsSync(pathName)) {
+      fs.writeFileSync(pathName, content);
+   }
 }
 
 function createDir(dirName) {

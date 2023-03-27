@@ -1,6 +1,6 @@
 {
   "name": "malinajs-devserver",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "MalinaJS Development Server",
   "main": "index.js",
   "repository": {
@@ -22,7 +22,6 @@
   "dependencies": {
     "chokidar": "^3.5.3",
     "esbuild": "^0.17.13",
-    "malinajs": "^0.6.64",
     "ws": "^8.13.0"
   }
 }

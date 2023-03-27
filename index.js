@@ -1,12 +1,25 @@
-const malina = require("malinajs");
 const esbuild = require("esbuild");
 const chokidar = require("chokidar");
 const ws = require("ws");
 
 const http = require("http");
-const fsp = require("fs/promises");
 const fs = require("fs");
 const path = require("path");
+
+const {
+   mainJS,
+   appXHT,
+   indexHTML,
+   errorXHT,
+   homeXHT,
+   cmpXHT,
+   cmpDirXHT,
+   routesJS,
+   malinaConfig,
+   injectedScript,
+   mime,
+   malinaPlugin,
+} = require("./lib");
 
 const cwd = process.cwd();
 
@@ -24,6 +37,7 @@ const outdir = opts.outdir || "public";
 
 let ready, ctx;
 
+init();
 build();
 
 if (watch) {
@@ -31,11 +45,41 @@ if (watch) {
    watchChanges();
 }
 
+function init() {
+   createDir("public");
+   createDir("src");
+   createDir("src/cmp");
+   createDir("src/libs");
+   createDir("src/modules");
+   createDir("src/stores");
+   createDir("src/pages");
+   createFile("src/main.js", mainJS);
+   createFile("src/App.xht", appXHT);
+   createFile("public/index.html", indexHTML);
+   createFile("src/modules/Error.xht", errorXHT);
+   createFile("src/pages/Home.xht", homeXHT);
+   createFile("src/routes.js", routesJS);
+   createFile("malina.config.js", malinaConfig);
+}
+
+function createFile(fileName, content) {
+   let pathName = path.join(cwd, fileName);
+   if (!fs.existsSync(pathName)) {
+      fs.writeFileSync(pathName, content);
+   }
+}
+
+function createDir(dirName) {
+   if (!fs.existsSync(path.join(cwd, dirName))) {
+      fs.mkdirSync(path.join(cwd, dirName));
+   }
+}
+
 async function build() {
    ctx = await esbuild.context({
       entryPoints: [path.join(cwd, "src", "main.js")],
       outdir: path.join(cwd, outdir),
-      minify: true,
+      minify: watch ? false : true,
       bundle: true,
       plugins: [malinaPlugin()],
       ...options,
@@ -46,34 +90,10 @@ async function build() {
    if (!watch) await ctx.dispose();
 }
 
-const injectedScript = `<script>const url="ws://localhost:35729";let socket=new WebSocket(url);socket.onclose=()=>{const e=()=>{socket=new WebSocket(url),socket.onerror=()=>setTimeout(e,2e3),socket.onopen=()=>location.reload()};e()},socket.onmessage=e=>{const{updated:o}=JSON.parse(e.data);if(!o.match(/\.(scss|css)/i))return location.reload();const t=document.querySelector('link[href*="'+o+'"]'),n=new URL(t.href),s=t.cloneNode();s.onload=()=>t.remove(),s.href=n.pathname+"?"+(Date.now()+"").slice(-5),t.parentNode.insertBefore(s,t.nextSibling)};</script>`;
-
 function startServer() {
    const index = () =>
       fs.readFileSync(path.join(cwd, outdir, "index.html"), "utf8") +
       injectedScript;
-
-   const mime = (ext) => {
-      let map = {
-         bin: "application/octet-stream",
-         pdf: "application/pdf",
-         json: "application/json",
-         webmanifest: "application/json",
-         html: "text/html, charset=UTF-8",
-         js: "text/javascript",
-         css: "text/css",
-         ico: "image/x-icon",
-         png: "image/png",
-         jpg: "image/jpeg",
-         webp: "image/webp",
-         svg: "image/svg+xml",
-         wav: "audio/wav",
-         mp3: "audio/mpeg",
-         mp4: "video/mp4",
-         webm: "video/webm",
-      };
-      return map[ext] || map.bin;
-   };
 
    const handler = (request, response) => {
       let url = request.url.replace(/(.*\/|\?.*)$/g, "") || "/";
@@ -99,52 +119,6 @@ function startServer() {
 
    let server = http.createServer(handler);
    server.listen(port);
-}
-
-function malinaPlugin(options = {}) {
-   const cssModules = new Map();
-
-   if (options.displayVersion !== false)
-      console.log("! Malina.js", malina.version);
-
-   return {
-      name: "malina-plugin",
-      setup(build) {
-         build.onLoad({ filter: /\.(xht|ma|html)$/ }, async (args) => {
-            let source = await fsp.readFile(args.path, "utf8");
-
-            let ctx = await malina.compile(source, {
-               path: args.path,
-               name: args.path.match(/([^/\\]+)\.\w+$/)[1],
-               ...options,
-            });
-
-            let code = ctx.result;
-
-            if (ctx.css.result) {
-               const cssPath = args.path
-                  .replace(/\.\w+$/, ".malina.css")
-                  .replace(/\\/g, "/");
-               cssModules.set(cssPath, ctx.css.result);
-               code += `\nimport "${cssPath}";`;
-            }
-
-            return { contents: code };
-         });
-
-         build.onResolve({ filter: /\.malina\.css$/ }, ({ path }) => {
-            return { path, namespace: "malinacss" };
-         });
-
-         build.onLoad(
-            { filter: /\.malina\.css$/, namespace: "malinacss" },
-            ({ path }) => {
-               const css = cssModules.get(path);
-               return css ? { contents: css, loader: "css" } : null;
-            }
-         );
-      },
-   };
 }
 
 function watchChanges() {
@@ -187,32 +161,8 @@ function watchChanges() {
          let dirPath = path.join(cwd, "src", "pages", dirName);
          let isCmp = /[A-Z]/.test(dirName.charAt(0));
          let content = "";
-         if (isCmp)
-            content += `<script>
-   export let params;
-   let page;
-   $:params, page = params.page;
-</script>
-
-<h3>{page}</h3>
-`;
-         else
-            content += `<script>
-   export let params;
-   import load from './pages';
-   let cmp = '';
-   const dynImport = dyn => dyn.then(m=>cmp=m.default);
-   $:params, load(params.page, dynImport);
-</script>
-
-{#if cmp}
-   <!--Chapter/-->
-   <component:cmp/>
-   <!--Footnote/-->
-{:else}
-   <E404/>
-{/if}
-`;
+         if (isCmp) content = cmpXHT;
+         else content = cmpDirXHT;
          if (isCmp) fs.writeFileSync(path.join(dirPath, "index.xht"), content);
          else {
             fs.writeFileSync(path.join(dirPath, "pageIndex.xht"), content);
@@ -229,24 +179,6 @@ function watchChanges() {
 function reIndex(filePath) {
    if (!filePath.endsWith("xht")) return;
    if (!ready) return;
-   if (!fs.existsSync("./src/pages/E404.xht")) {
-      fs.writeFileSync(
-         "./src/pages/E404.xht",
-         `<div>
-   <h1>404</h1>
-   <h6>PAGE NOT FOUND</h6>
-</div>
-<style>
-   div {
-      padding: 3em 0;
-   }
-   div * {
-      text-align: center;
-   }
-</style>
-      `
-      );
-   }
 
    let fileName = filePath.replace(/.*\\/g, "");
    let dirName = filePath.replace(fileName, "");

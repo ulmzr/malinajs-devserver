@@ -21,7 +21,7 @@
   "homepage": "https://github.com/ulmzr/malinajs-devserver#readme",
   "dependencies": {
     "chokidar": "^3.5.3",
-    "esbuild": "^0.17.13",
+    "esbuild": "^0.17.14",
     "ws": "^8.13.0"
   }
 }

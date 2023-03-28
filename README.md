@@ -5,7 +5,7 @@ Just simple http server with hot, reload and autoroute capabilities.
 ```
 malina-project/
 ├ src/
-│ ├ components/
+│ ├ cmp/
 │ │ └ [your component files]
 │ ├ modules/
 │ │ └ [your module files]

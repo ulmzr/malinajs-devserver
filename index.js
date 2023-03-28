@@ -147,14 +147,20 @@ function watchChanges() {
       });
 
    chokidar
-      .watch(["src/**/*"], {
+      .watch(["src/**/*.css", "src/**/*.scss"], {
          ignored: /(^|[\/\\])\../,
          persistent: true,
          cwd,
       })
       .on("change", async (filePath) => {
-         if (!filePath.endsWith("css")) return;
+         if (!ctx) return;
          await ctx.rebuild();
+      });
+   chokidar
+      .watch(["src/pages/**/*"], {
+         ignored: /(^|[\/\\])\../,
+         persistent: true,
+         cwd,
       })
       .on("add", reIndex)
       .on("unlink", reIndex)
@@ -169,7 +175,10 @@ function watchChanges() {
          if (isCmp) fs.writeFileSync(path.join(dirPath, "index.xht"), content);
          else {
             fs.writeFileSync(path.join(dirPath, "pageIndex.xht"), content);
-            fs.writeFileSync(path.join(dirPath, "pages.js"), "");
+            fs.writeFileSync(
+               path.join(dirPath, "index.js"),
+               "export default () => {};"
+            );
          }
       })
       .on("unlinkDir", makeRoutes)
@@ -213,42 +222,38 @@ function makeRoutes() {
       let files = fs.readdirSync(dirPath);
       arrayOfFiles = arrayOfFiles || [];
       files.forEach(function (file) {
-         if (fs.statSync(dirPath + "/" + file).isDirectory()) {
-            arrayOfFiles = getAllFiles(dirPath + "/" + file, arrayOfFiles);
-         } else {
-            arrayOfFiles.push(path.join(cwd, dirPath, "/", file));
-         }
+         arrayOfFiles.push(path.join(cwd, "src/pages", file));
       });
       return arrayOfFiles;
    };
 
    let dirPath = path.join(cwd, "src", "pages");
    let files = getAllFiles(dirPath);
+   //let files = fs.readdirSync(dirPath);
 
    files = files.filter((f) => {
-      let cmpIdx = f.includes("index.xht");
+      let isDir = fs.statSync(f).isDirectory();
       f = f.replace(/.*(\\|\/)/, "");
-      let match =
-         (/[A-Z]/.test(f.charAt(0)) && f.endsWith(".xht")) ||
-         f.startsWith("pageIndex.xht");
-      return match || cmpIdx;
+      let match = (/[A-Z]/.test(f.charAt(0)) && f.endsWith(".xht")) || isDir;
+      return match || cmpIdx || isDir;
    });
 
    let content = `export default run => [\n`;
    files.forEach((file) => {
       let filePath = file.split("src")[1];
-      filePath = filePath.replaceAll("\\", "/");
+      filePath = filePath.replace(/\\/g, "/");
       content += "\t{\n";
-      if (filePath.endsWith("pageIndex.xht")) {
-         filePath = filePath
-            .replace("/pageIndex.xht", "")
-            .replace(/.*\//g, "/");
-         content += `\t\tpath: "${filePath}/:page",\n`;
-         content += `\t\tpage: obj => run(import("./pages${filePath}/pageIndex.xht"), obj),\n`;
-      } else if (filePath.endsWith("index.xht")) {
-         filePath = filePath.replace("/index.xht", "").replace(/.*\//g, "/");
-         content += `\t\tpath: "${filePath.toLowerCase()}/:page",\n`;
-         content += `\t\tpage: obj => run(import("./pages${filePath}/index.xht"), obj),\n`;
+      if (fs.statSync(path.join(cwd, "src", filePath)).isDirectory()) {
+         let dirName = filePath.replace(/.*\//g, "");
+         if (/[A-Z]/.test(dirName.charAt(0))) {
+            filePath = filePath.replace(/.*\//g, "/");
+            content += `\t\tpath: "${filePath.toLowerCase()}/:page",\n`;
+            content += `\t\tpage: obj => run(import("./pages${filePath}/index.xht"), obj),\n`;
+         } else {
+            filePath = filePath.replace(/.*\//g, "/");
+            content += `\t\tpath: "${filePath}/:page",\n`;
+            content += `\t\tpage: obj => run(import("./pages${filePath}/pageIndex.xht"), obj),\n`;
+         }
       } else {
          filePath = filePath.replace(".xht", "").replace(/.*\//g, "/");
          let pathName = filePath === "/Home" ? "/" : filePath;

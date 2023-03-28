@@ -236,7 +236,7 @@ const cmpXHT = `<script>
 
 const cmpDirXHT = `<script>
    export let params;
-   import load from './pages';
+   import load from './';
    
    let cmp = '';
    const dynImport = dyn => dyn.then(m=>cmp=m.default);

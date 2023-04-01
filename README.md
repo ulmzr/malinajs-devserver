@@ -1,5 +1,5 @@
 # MalinaJS Development Server
-Just simple http server with hot, reload and autoroute capabilities.
+Just simple http server with reload and autoroute capabilities.
 
 ### Folder structure ###
 ```
@@ -7,11 +7,11 @@ malina-project/
 ├ src/
 │ ├ cmp/
 │ │ └ [your component files]
-│ ├ modules/
+│ ├ module/
 │ │ └ [your module files]
-│ ├ stores/
+│ ├ store/
 │ │ └ [your store + param files]
-│ ├ libs/
+│ ├ lib/
 │ │ └ [your lib files]
 │ ├ pages/
 │ │ └ [your page routes]

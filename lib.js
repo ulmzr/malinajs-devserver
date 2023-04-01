@@ -1,310 +1,262 @@
-const fsp = require("node:fs/promises");
+const esbuild = require("esbuild");
 const malina = require("malinajs");
+const { join } = require("node:path");
+const fs = require("node:fs");
+const fsp = require("node:fs/promises");
 
-const injectedScript = `<script>const url="ws://localhost:35729";let socket=new WebSocket(url);socket.onclose=()=>{const e=()=>{socket=new WebSocket(url),socket.onerror=()=>setTimeout(e,2e3),socket.onopen=()=>location.reload()};e()},socket.onmessage=e=>{const{updated:o}=JSON.parse(e.data);if(!o.match(/\.(scss|css)/i))return location.reload();const t=document.querySelector('link[href*="'+o+'"]'),n=new URL(t.href),s=t.cloneNode();s.onload=()=>t.remove(),s.href=n.pathname+"?"+(Date.now()+"").slice(-5),t.parentNode.insertBefore(s,t.nextSibling)};</script>`;
+const cwd = process.cwd();
+const options = {};
+const opts = {};
 
-const mainJS = `import App from './App.xht';
-App(document.body);
-`;
+const port = opts.port || 3000;
+const outdir = opts.outdir || "public";
 
-const appXHT = `<script>
+let socket;
+
+const mainjsContent = `import App from './App.xht';
+App(document.body);`;
+
+const appxhtContent = `<script>
    import Router from 'malinajs-trouter';
    import routes from './routes';
 
    let cmp, params, active, uri;
 
-   Router(routes(run), ()=> run(import('./modules/Error.xht')));
+   const error404 = import('./module/Error.xht'); 
 
-   function run(dynImport, obj) {
-      params = obj;
-      if (typeof dynImport === 'function') {
-         cmp = dynImport;
-      } else {
-         dynImport.then( modules => cmp = modules.default);
-      }
-   }
+   Router(routes, result => {
+      cmp = result.cmp;
+      params = result.params;
+   }, error404);
 
-   $: location.pathname, ()=> {
+   $: location.pathname, async () => {
       uri = location.pathname;
-      active = uri.split('/')[1] || 'home';
+      active = uri.split("/")[1] || "home";
    }
 </script>
 
+<Sidebar></>
+
 {#if cmp}
-   <article>
-      <component:cmp {params} />
-   </article>
+   <Main>
+      <component:cmp {params}/>
+   </>
 {/if}
 
+
 <style global>
-   *, *::before, *::after {
-      box-sizing: border-box
-   }
-
-   * {
-      margin-top: 0;
-   }
-
-   body {
-      font-family: var(--fonts, system-ui);
-      line-height: 1.5;
-      text-rendering: optimizeSpeed;
-      -webkit-font-smoothing: antialiased;
-   }
-
-   h1, h2, h3, h4, h5, h6 {
-      line-height: 1.125; 
-   }
-
-   h1 {
-      font-size: 2em;
-   }
-
-   img, svg {
-      width: 100%;
-      height: auto;
-   }
-
-   svg {
-      fill: currentColor;
-   }
-
-   input, button, textarea, select {
-      font: inherit;
-   }
-
-   .button {
-      --color: #aab2bd;
-      --colorse: #aab2bdcc;
-      --hover: #96a0ad55;
-      --focus: #aab2bd99;
-      --border: #96a0ad;
-      display: inline-block;
-      vertical-align: middle;
-      white-space: nowrap;
-      padding: 0.3125em 0.875em;
-      border-radius: 0.5em;
-      height: 2.25em;
-      text-align: center;
-      color: #fff;
-      text-shadow: 0 1px 0 #656d78;
-      background: var(--color);
-      border: 1px solid var(--border);
-      text-decoration: none;
-      user-select: none;
-      cursor: pointer;
-   }
-
-   .button:hover {
-      z-index: 3;
-      box-shadow: 0 0 0 3px var(--hover);
-   }
-
-   .button:focus {
-      z-index: 2;
-      box-shadow: 0 0 0 3px var(--focus);
-   }
-
-   .button:active {
-      z-index: 3;
-      box-shadow: inset 0 0 0 1px var(--border);
-   }
-
-   .button[disabled] {
-      box-shadow: none;
-      text-decoration: none;
-      cursor: not-allowed;
-      opacity: 0.3;
-   }
-
-   .button * {
-      pointer-events: none;
-   }
-
-   [type=text], [type=password], [type=email] {
-      display: inline-block;
-      white-space: nowrap;
-      padding: 0.3125em 0.875em;
-      border-radius: 0.5em;
-      background: inherit;
-      height: 2.25em;
-      border: 1px solid #ccd1d9;
-      outline: none;
-   }
-
-   [type=text]:focus, [type=password]:focus, [type=email]:focus {
-      border-color: transparent;
-      box-shadow: 0 0 0 3px #4a89dc55;
-   }
-
-   hr {
-      margin: 1.5em 0;
-      height: 1px;
-      border: none;
-      background: #bbb;
-   }
-
-   hgroup :first-child{
-      margin-bottom: .25em;
-   }
-
-   hgroup :not(:first-child){
-      color: #999;
-   }
-
-   article {
-      padding: 1em;
-      margin: 0 auto;
-      width: 900px;
-   }
 </style>
 `;
 
-const indexHTML = `<!DOCTYPE html>
-<html lang='en'>
-<head>
-   <meta charset='UTF-8'>
-   <meta http-equiv='X-UA-Compatible' content='IE=edge'>
-   <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-   <title>Malina App</title>
-   <link rel='stylesheet' href='/main.css'>
-   <script defer src='/main.js'></script>
-</head>
-<body id='app'></body>
-</html>`;
-
-const errorXHT = `<script>
-   export let code = 404;
-   export let msg = 'Page not found!';
+const errorxhtContent = `<script>
+   export let num = 404;
+   export let nfo = 'page not found';
+   export let msg = 'Page you are looking for is not found.<br>Probably eaten by a snake.';
 </script>
 
 <hgroup>
-   <h1>{code}</h1>
-   <h6>{msg}</h6>
+   <h1>{num}</h1>
+   <h6>{nfo}</h6>
+   <p>{@html msg}</p>
 </hgroup>
 
 <style>
    hgroup {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       text-align: center;
+      padding: 3em 0;
    }
 
-   hgroup * {
+   h6 {
       text-transform: uppercase;
-      letter-spacing: 2px;
+      color: #bbb;
+      margin-bottom: 1em;
+      letter-spacing: 5px;
+   }
+
+   p {
+      line-height: 1.25;
+      font-size: .75em;
    }
 </style>
 `;
 
-const homeXHT = `<hgroup>
-   <h1>Home</h1>
-   <h3>Your are at home</h3>
-</hgroup>
-<hr>
-<p>Lorem ipsum ....</p>
-<a href="/about/us" class="button">About Us</a>
+const indexhtmlContent = `<!DOCTYPE html>
+<html lang="en">
+   <head>
+      <meta charset="UTF-8" />
+      <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Document</title>
+      <link rel="icon" href="/logo.svg" />
+      <link rel="stylesheet" href="/main.css" />
+      <script defer src="/main.js"></script>
+   </head>
+   <body></body>
+</html>
 `;
 
-const aboutXHT = `<script>
-   export let params;
-   let page;
-   $:params, page = params.page;
-</script>
+const logosvgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 490 490">
+   <path fill="#4A89DC" d="m0 186 107 62 108-62V63L107 1 0 63z"/>
+   <path fill="#8CC152" d="M275 63v123l108 62 107-62V63L383 1z"/>
+   <path fill="#F6BB42" d="M138 304v123l107 62 107-62V304l-107-62z"/>
+</svg>`;
 
-<hgroup>
-   <h1>About</h1>
-   <h3>Something {page}</h3>
-</hgroup>
-<hr>
-<p>Nothing much here...</p>
-<a href="/" class="button">Home</a>
+const injectedScript = `<script>let u="ws://localhost:${port}",s=new WebSocket(u);s.onclose=o=>{let e=o=>(s=new WebSocket(u),s.onerror=o=>setTimeout(e,2e3),s.onopen=o=>location.reload());e()},s.onmessage=o=>location.reload();</script>`;
+
+const sample = (str) => `<script>
+   export let params;
+   console.log(params);
+</script>
+<article>
+   <hgroup>
+      <h1>${str}</h1>
+      <h3>Sub${str.toLowerCase()}</h3>
+   </hgroup>
+</article>
 `;
 
-const cmpXHT = `<script>
-   export let params;
-
-   let page;
-   
-   $:params, page = params.page;
-</script>
-
-<hgroup>
-   <h1>Title</h1>
-   <h3>Params {page}</h3>
-</hgroup>
-
-<hr>`;
-
-const cmpDirXHT = `<script>
+const pageIndexXht = `<script>
    export let params;
    import load from './';
    
-   let cmp = '';
-   const dynImport = dyn => dyn.then(m=>cmp=m.default);
+   let cmp;
+   const dynImport = o => o.then( m => cmp = m.default);
    
-   $:params, load(params.page, dynImport);
+   $: params, load(params.$1, dynImport); 
 </script>
 
 {#if cmp}
-   <!--Chapter/-->
-   <component:cmp/>
-   <!--Footnote/-->
+   <component:cmp {params}/>
 {:else}
    <Error/>
 {/if}
 `;
 
-const routesJS = `export default run => [
-   {
-      path: '/',
-      view: ()=> run(import('./pages/Home.xht'))
+const indexJs = `export default []`;
+
+function init() {
+   let malinaConfigTpl = join(__dirname, "malina.config.js");
+   let malinaConfig = join(cwd, "malina.config.js");
+   if (!fs.existsSync(malinaConfig)) {
+      let content = fs.readFileSync(malinaConfigTpl);
+      fs.writeFileSync(malinaConfig, content);
    }
-]`;
+   createFolder("src");
+   createFolder(outdir);
+   createRoute();
+}
 
-const malinaConfig = `const sassPlugin = require('malinajs/plugins/sass');
-const fs = require('fs');
-const path = require('path');
-const cwd = process.cwd();
-const dirs = ['pages', 'cmp', 'modules'];
+function createFolder(str) {
+   if (!fs.existsSync(join(cwd, str))) {
+      fs.mkdirSync(join(cwd, str));
+   }
 
-module.exports = function (option, filename) {
-   option.css = false;
-   option.passClass = false;
-   option.immutable = true;
-   option.plugins = [sassPlugin()];
-   option.autoimport = (name) => {
-      let fileMatch = '';
-      let filePath = '';
-      let fileIdxPath = '';
-      let whereAmI = filename
-         .replace(/^.+src|[^\\\\]+\$/g, '')
-         .split('\\\\')
-         .slice(1)
-         .slice(0, -1);
-      whereAmI = whereAmI.map((item) => (item = '..'));
-      whereAmI = whereAmI.join('/');
-      dirs.forEach((dir) => {
-         filePath = path
-            .join(cwd, 'src', dir, name + '.xht')
-            .replaceAll('\\\\', '/');
-         fileIdxPath = path
-            .join(cwd, 'src', dir, name.toLowerCase() + '/index.xht')
-            .replaceAll('\\\\', '/');
+   if (str.includes("src")) {
+      if (!fs.existsSync(join(cwd, "src/main.js"))) {
+         fs.writeFileSync(join(cwd, "src/main.js"), mainjsContent);
+      }
 
-         if (fs.existsSync(filePath)) {
-            fileMatch = filePath.split('src')[1];
-            return;
-         } else if (fs.existsSync(fileIdxPath)) {
-            fileMatch = fileIdxPath.split('src')[1];
-            return;
-         }
+      if (!fs.existsSync(join(cwd, "src/App.xht"))) {
+         fs.writeFileSync(join(cwd, "src/App.xht"), appxhtContent);
+      }
+
+      if (!fs.existsSync(join(cwd, str, "cmp"))) {
+         fs.mkdirSync(join(cwd, str, "cmp"));
+      }
+
+      if (!fs.existsSync(join(cwd, str, "module"))) {
+         fs.mkdirSync(join(cwd, str, "module"));
+      }
+
+      if (!fs.existsSync(join(cwd, str, "module/Error.xht"))) {
+         fs.writeFileSync(join(cwd, str, "module/Error.xht"), errorxhtContent);
+      }
+
+      if (!fs.existsSync(join(cwd, "src/pages"))) {
+         fs.mkdirSync(join(cwd, "src/pages"));
+      }
+
+      if (!fs.existsSync(join(cwd, "src/pages/Home.xht"))) {
+         fs.writeFileSync(join(cwd, "src/pages/Home.xht"), sample("Home"));
+      }
+   } else if (str.includes(outdir)) {
+      if (!fs.existsSync(join(cwd, outdir, "index.html"))) {
+         fs.writeFileSync(join(cwd, outdir, "index.html"), indexhtmlContent);
+      }
+
+      if (!fs.existsSync(join(cwd, outdir, "logo.svg"))) {
+         fs.writeFileSync(join(cwd, outdir, "logo.svg"), logosvgContent);
+      }
+   }
+}
+
+async function build(dev) {
+   try {
+      let ctx = await esbuild.context({
+         entryPoints: ["src/main.js"],
+         outdir: "public",
+         bundle: true,
+         minify: dev ? false : true,
+         plugins: [malinaPlugin()],
+         ...options,
       });
-      if (fileMatch) return \`import \${name} from './\${whereAmI}\${fileMatch}';\`;
-      else return \`import \${name} from './\${name}.xht';\`;
-   };
-   return option;
-};
+      await ctx.watch();
+      return ctx;
+   } catch (err) {
+      console.error(err);
+   }
+}
 
-`;
+function malinaPlugin(options = {}) {
+   const cssModules = new Map();
+
+   if (options.displayVersion !== false)
+      console.log("! Malina.js", malina.version);
+
+   return {
+      name: "malina-plugin",
+      setup(build) {
+         build.onLoad({ filter: /\.(xht|ma|html|svg)$/ }, async (args) => {
+            let code = "";
+            try {
+               let source = await fsp.readFile(args.path, "utf8");
+               let ctx = await malina.compile(source, {
+                  path: args.path,
+                  name: args.path.match(/([^/\\]+)\.\w+$/)[1],
+                  ...options,
+               });
+               code = ctx.result;
+               if (ctx.css.result) {
+                  const cssPath = args.path
+                     .replace(/\.\w+$/, ".malina.css")
+                     .replace(/\\/g, "/");
+                  cssModules.set(cssPath, ctx.css.result);
+                  code += `\nimport "${cssPath}";`;
+               }
+            } catch (err) {
+               console.log(err);
+            }
+            return { contents: code };
+         });
+
+         build.onResolve({ filter: /\.malina\.css$/ }, ({ path }) => {
+            return { path, namespace: "malinacss" };
+         });
+
+         build.onLoad(
+            { filter: /\.malina\.css$/, namespace: "malinacss" },
+            ({ path }) => {
+               const css = cssModules.get(path);
+               return css ? { contents: css, loader: "css" } : null;
+            }
+         );
+      },
+   };
+}
 
 function mime(ext) {
    let map = {
@@ -328,64 +280,146 @@ function mime(ext) {
    return map[ext] || map.bin;
 }
 
-function malinaPlugin(options = {}) {
-   const cssModules = new Map();
+function serve(dev) {
+   const indexFile = join(cwd, outdir, "index.html");
+   let index = "";
+   if (fs.existsSync(indexFile)) {
+      index += fs.readFileSync(indexFile);
+      index += dev ? injectedScript : "";
+   }
+   return require("node:http")
+      .createServer((req, res) => {
+         let content,
+            code = 200,
+            url = req.url.replace(/(.*\/|\?.*)$/g, "") || "/",
+            arr = url.split(".");
 
-   if (options.displayVersion !== false)
-      console.log("! Malina.js", malina.version);
-
-   return {
-      name: "malina-plugin",
-      setup(build) {
-         build.onLoad({ filter: /\.(xht|ma|html)$/ }, async (args) => {
-            let source = await fsp.readFile(args.path, "utf8");
-
-            let ctx = await malina.compile(source, {
-               path: args.path,
-               name: args.path.match(/([^/\\]+)\.\w+$/)[1],
-               ...options,
-            });
-
-            let code = ctx.result;
-
-            if (ctx.css.result) {
-               const cssPath = args.path
-                  .replace(/\.\w+$/, ".malina.css")
-                  .replace(/\\/g, "/");
-               cssModules.set(cssPath, ctx.css.result);
-               code += `\nimport "${cssPath}";`;
+         if (arr[1]) {
+            res.setHeader("Content-Type", mime(arr[1]));
+            let filename = join(cwd, outdir, url);
+            if (fs.existsSync(filename)) {
+               content = fs.readFileSync(filename);
+            } else {
+               code = 404;
             }
+         } else {
+            res.setHeader("Content-Type", "text/html");
+            content = index;
+         }
 
-            return { contents: code };
-         });
+         if (dev) {
+            console.log(code === 200 ? "200" : code, url);
+         }
 
-         build.onResolve({ filter: /\.malina\.css$/ }, ({ path }) => {
-            return { path, namespace: "malinacss" };
-         });
+         res.statusCode = code;
+         res.end(content);
+      })
+      .listen(port);
+}
 
-         build.onLoad(
-            { filter: /\.malina\.css$/, namespace: "malinacss" },
-            ({ path }) => {
-               const css = cssModules.get(path);
-               return css ? { contents: css, loader: "css" } : null;
+function createRoute() {
+   let files = [];
+   const readDir = (dir) => {
+      let path = join(cwd, dir);
+      fs.readdirSync(path).forEach((file) => {
+         let stats = fs.statSync(join(cwd, dir, file));
+         if (stats.isDirectory()) {
+            return readDir(join(dir, file));
+         } else {
+            if (
+               /[A-Z]/.test(file.charAt(0)) ||
+               file === "index.xht" ||
+               file === "pageIndex.xht"
+            ) {
+               files.push(join(dir, file));
             }
-         );
-      },
+         }
+      });
    };
+   readDir("src/pages");
+   if (files) {
+      let content = `export default [\n`;
+      files.forEach((file) => {
+         file = file.replace(/\\/g, "/");
+         file = file.replace("src", "");
+         let f = file.replace(/.*\//g, "").replace(".xht", "");
+         content += "\t{\n";
+         if (f === "index" || f === "pageIndex") {
+            let path = file.split("/" + f)[0];
+            path = path.replace(/.*\//g, "").toLowerCase();
+            content += `\t\tpath: '/${path}/:page',\n`;
+            content += `\t\tpage: import('.${file}'),\n`;
+         } else {
+            let path = f.toLowerCase();
+            content += `\t\tpath: '/${path === "home" ? "" : path}',\n`;
+            content += `\t\tpage: import('.${file}'),\n`;
+         }
+         content += "\t},\n";
+      });
+      content += "];";
+      fs.writeFileSync(join(cwd, "src/routes.js"), content);
+   }
+}
+
+async function watch(server, ctx) {
+   const ws = require("ws");
+   socket = new ws.WebSocketServer({ server });
+
+   const watcher = require("@parcel/watcher");
+
+   await watcher.subscribe(join(cwd, outdir), (err, ev) => {
+      socket?.clients.forEach((client) => {
+         client.send("");
+      });
+   });
+
+   await watcher.subscribe(join(cwd, "src"), async (err, ev) => {
+      ev = ev[0];
+      if (ev.path.endsWith("css")) {
+         await ctx.rebuild();
+      } else if (ev.type === "create") {
+         let me = ev.path.replace(/.*\\|.*\//, "");
+         let stats = fs.statSync(ev.path);
+         if (stats.isDirectory()) {
+            let cmpIndex = /[A-Z]/.test(me.charAt(0));
+            if (cmpIndex) {
+               fs.writeFileSync(join(ev.path, "index.xht"), sample(me));
+            } else {
+               fs.writeFileSync(
+                  join(ev.path, "+page.xht"),
+                  sample("List of " + me)
+               );
+               fs.writeFileSync(join(ev.path, "index.js"), indexJs);
+               fs.writeFileSync(join(ev.path, "pageIndex.xht"), pageIndexXht);
+            }
+         } else {
+            if (me.startsWith("+") && me.endsWith(".xht")) {
+               let content = `export default (page, dynImport)=>{\n`;
+               content += `\tif (!page) return;\n`;
+               let dir = ev.path.split(me)[0];
+               let files = fs.readdirSync(dir).filter((file) => {
+                  return file.startsWith("+");
+               });
+               if (files) {
+                  files.forEach((file) => {
+                     let str = file.replace(/\+|.xht/g, "");
+                     content += `\telse if (page==='${str}') dynImport(import('./${file}'));\n`;
+                  });
+               }
+               content += "}";
+               fs.writeFileSync(join(dir, "index.js"), content);
+            }
+         }
+         createRoute();
+      } else if (ev.type === "delete") {
+         createRoute();
+      }
+   });
 }
 
 module.exports = {
-   mainJS,
-   appXHT,
-   indexHTML,
-   errorXHT,
-   homeXHT,
-   aboutXHT,
-   cmpXHT,
-   cmpDirXHT,
-   routesJS,
-   malinaConfig,
-   injectedScript,
-   mime,
-   malinaPlugin,
+   init,
+   build,
+   serve,
+   watch,
 };
